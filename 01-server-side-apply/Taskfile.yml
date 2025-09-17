@@ -1,0 +1,58 @@
+# https://taskfile.dev
+
+version: '3'
+
+vars:
+  CLUSTER_NAME: controller-runtime-playground
+
+tasks:
+  play:
+    desc: Play with the project
+    cmds:
+      - task: generate
+      - task: cluster:ensure-present
+      - task: cluster:apply-manifests
+      - task: test
+      - task: cluster:ensure-absent
+
+  cluster:ensure-present:
+    desc: Create a cluster if it doesn't exist
+    cmds:
+      - kind get clusters | grep {{.CLUSTER_NAME}} || kind create cluster --name {{.CLUSTER_NAME}}
+
+  cluster:ensure-absent:
+    desc: Delete a cluster
+    cmds:
+      - kind delete cluster --name {{.CLUSTER_NAME}}
+
+  generate:
+    desc: Generate code for the project
+    silent: true
+    cmds:
+      - task: generate:deepcopy
+      - task: generate:applyconfiguration
+      - task: generate:manifests
+
+  generate:deepcopy:
+    desc: Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations.
+    cmd: go tool controller-gen object paths="./..."
+
+  generate:applyconfiguration:
+    desc: Generate applyconfiguration code
+    cmd: go tool controller-gen applyconfiguration paths="./..."
+
+  generate:manifests:
+    desc: Generate Kubernetes CRDs
+    cmds: 
+      - rm -rf manifests
+      - go tool controller-gen crd paths="./..." output:dir=manifests
+
+  cluster:apply-manifests:
+    desc: Apply the manifests to the cluster
+    cmds:
+      - kubectl apply -f manifests
+
+  test:
+    desc: Test the project
+    cmds:
+      - go test -v ./...
